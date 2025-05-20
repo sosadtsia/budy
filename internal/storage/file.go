@@ -37,6 +37,11 @@ func NewFileStorage() (*FileStorage, error) {
 	}, nil
 }
 
+// GetDataDir returns the data directory path
+func (s *FileStorage) GetDataDir() string {
+	return s.dataDir
+}
+
 // Save stores data under the given key
 func (s *FileStorage) Save(key string, data interface{}) error {
 	// Marshal data to JSON

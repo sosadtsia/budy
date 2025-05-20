@@ -6,16 +6,19 @@ import (
 	"strings"
 )
 
-// Executor handles shell command execution
-type Executor struct{}
+// ShellExecutor implements the Executor interface
+type ShellExecutor struct{}
+
+// Ensure ShellExecutor implements the Executor interface
+var _ Executor = (*ShellExecutor)(nil)
 
 // NewExecutor creates a new shell executor
-func NewExecutor() *Executor {
-	return &Executor{}
+func NewExecutor() *ShellExecutor {
+	return &ShellExecutor{}
 }
 
 // Execute runs a shell command and returns any error
-func (e *Executor) Execute(command string) error {
+func (e *ShellExecutor) Execute(command string) error {
 	// Split the command into parts
 	parts := strings.Fields(command)
 	if len(parts) == 0 {

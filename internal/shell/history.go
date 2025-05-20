@@ -14,14 +14,17 @@ type CommandEntry struct {
 	Directory string    `json:"directory"`
 }
 
-// HistoryManager handles command history
-type HistoryManager struct {
+// FileHistoryManager implements the HistoryManager interface using file storage
+type FileHistoryManager struct {
 	storage storage.Storage
 	history []CommandEntry
 }
 
+// Ensure FileHistoryManager implements the HistoryManager interface
+var _ HistoryManager = (*FileHistoryManager)(nil)
+
 // NewHistoryManager creates a new history manager
-func NewHistoryManager(storage storage.Storage) *HistoryManager {
+func NewHistoryManager(storage storage.Storage) *FileHistoryManager {
 	// Load existing history from storage
 	var history []CommandEntry
 	if err := storage.Load("history", &history); err != nil {
@@ -29,14 +32,14 @@ func NewHistoryManager(storage storage.Storage) *HistoryManager {
 		history = []CommandEntry{}
 	}
 
-	return &HistoryManager{
+	return &FileHistoryManager{
 		storage: storage,
 		history: history,
 	}
 }
 
 // RecordCommand adds a command to history
-func (h *HistoryManager) RecordCommand(command string) error {
+func (h *FileHistoryManager) RecordCommand(command string) error {
 	// Get current directory
 	dir, err := os.Getwd()
 	if err != nil {
@@ -58,12 +61,12 @@ func (h *HistoryManager) RecordCommand(command string) error {
 }
 
 // GetHistory returns the command history
-func (h *HistoryManager) GetHistory() []CommandEntry {
+func (h *FileHistoryManager) GetHistory() []CommandEntry {
 	return h.history
 }
 
 // GetRecentCommands returns the n most recent commands
-func (h *HistoryManager) GetRecentCommands(n int) []CommandEntry {
+func (h *FileHistoryManager) GetRecentCommands(n int) []CommandEntry {
 	if len(h.history) <= n {
 		return h.history
 	}
@@ -71,7 +74,7 @@ func (h *HistoryManager) GetRecentCommands(n int) []CommandEntry {
 }
 
 // GetDirectoryCommands returns commands executed in the current directory
-func (h *HistoryManager) GetDirectoryCommands() []CommandEntry {
+func (h *FileHistoryManager) GetDirectoryCommands() []CommandEntry {
 	dir, err := os.Getwd()
 	if err != nil {
 		return []CommandEntry{}

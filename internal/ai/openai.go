@@ -9,6 +9,9 @@ import (
 	"os"
 )
 
+// Ensure OpenAIClient implements the Client interface
+var _ Client = (*OpenAIClient)(nil)
+
 // OpenAIClient handles interactions with the OpenAI API
 type OpenAIClient struct {
 	apiKey string
