@@ -7,7 +7,7 @@
 *.dll
 *.so
 *.dylib
-budy
+/budy         # Ignore only the binary at the root level, not the directory
 
 # Test binary, built with `go test -c`
 *.test
