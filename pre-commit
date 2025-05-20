@@ -1,0 +1,47 @@
+#!/bin/sh
+#
+# Pre-commit hook for Go projects
+# Checks code with golangci-lint and runs tests before committing
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+# Check if Task is installed
+if ! command -v task >/dev/null 2>&1; then
+    printf "${RED}Error: Task is not installed.${NC}\n"
+    printf "${YELLOW}Please install it by running:${NC}\n"
+    printf "    go install github.com/go-task/task/v3/cmd/task@latest\n"
+    printf "or visit https://taskfile.dev for installation instructions.\n"
+    exit 1
+fi
+
+# Check if golangci-lint is installed
+if ! command -v golangci-lint >/dev/null 2>&1; then
+    printf "${RED}Error: golangci-lint is not installed.${NC}\n"
+    printf "${YELLOW}Please install it by running:${NC}\n"
+    printf "    brew install golangci-lint\n"
+    printf "or visit https://golangci-lint.run/usage/install/ for installation instructions.\n"
+    exit 1
+fi
+
+printf "${YELLOW}Running linter...${NC}\n"
+if ! task lint; then
+    printf "${RED}Linting failed. Please fix the errors and try again.${NC}\n"
+    exit 1
+else
+    printf "${GREEN}Linting passed!${NC}\n"
+fi
+
+printf "${YELLOW}Running tests...${NC}\n"
+if ! task test; then
+    printf "${RED}Tests failed. Please fix the errors and try again.${NC}\n"
+    exit 1
+else
+    printf "${GREEN}Tests passed!${NC}\n"
+fi
+
+printf "${GREEN}All checks passed! Committing changes...${NC}\n"
+exit 0

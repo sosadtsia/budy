@@ -1,0 +1,251 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a prerelease?'
+        required: false
+        default: false
+        type: boolean
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'cmd/budy/main.go'
+      - 'internal/**/*.go'
+      - 'pkg/**/*.go'
+    # Only run on semantic versioning commit messages
+    # Example: "feat: add background mode" or "fix: correct duration handling"
+    # This will require commit messages following conventional commits format
+    # to trigger automatic version bumping
+
+jobs:
+  detect_version:
+    name: Detect Version
+    runs-on: ubuntu-latest
+    # Skip this job if workflow was manually triggered (we already have version)
+    if: github.event_name != 'workflow_dispatch'
+    outputs:
+      new_version: ${{ steps.semver.outputs.new_version || steps.initial_tag.outputs.version }}
+      needs_release: ${{ steps.set_release_needed.outputs.needs_release || steps.check_tags.outputs.create_initial_tag }}
+      release_type: ${{ steps.semver.outputs.release_type || 'patch' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Check for existing tags
+        id: check_tags
+        run: |
+          if [ -z "$(git tag -l 'v*')" ]; then
+            echo "No semver tags found, will create initial tag"
+            echo "create_initial_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "Found existing semver tags"
+            echo "create_initial_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create initial tag
+        if: steps.check_tags.outputs.create_initial_tag == 'true'
+        id: initial_tag
+        run: |
+          echo "version=v0.0.1" >> $GITHUB_OUTPUT
+          echo "Initial version will be v0.0.1"
+
+      - name: Detect Semantic Version
+        id: semver
+        if: steps.check_tags.outputs.create_initial_tag != 'true'
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          default_bump: patch
+          release_branches: main
+          dry_run: false
+
+      - name: Set Release Needed
+        if: steps.check_tags.outputs.create_initial_tag != 'true' && steps.semver.outputs.new_version != ''
+        id: set_release_needed
+        run: |
+          echo "needs_release=true" >> $GITHUB_OUTPUT
+
+      - name: Debug Semantic Version Output
+        if: steps.check_tags.outputs.create_initial_tag != 'true'
+        run: |
+          echo "New Version: ${{ steps.semver.outputs.new_version }}"
+          echo "Needs Release (from semver): ${{ steps.semver.outputs.needs_release }}"
+          echo "Needs Release (our setting): ${{ steps.set_release_needed.outputs.needs_release }}"
+          echo "Release Type: ${{ steps.semver.outputs.release_type }}"
+
+      - name: Final Output Values
+        run: |
+          echo "Final new_version: ${{ steps.semver.outputs.new_version || steps.initial_tag.outputs.version }}"
+          echo "Final needs_release: ${{ steps.set_release_needed.outputs.needs_release || steps.check_tags.outputs.create_initial_tag }}"
+          if [[ "${{ steps.semver.outputs.new_version }}" != "" ]]; then
+            echo "Detected new version, should trigger build"
+          fi
+          if [[ "${{ steps.set_release_needed.outputs.needs_release }}" == "true" ]]; then
+            echo "Release needed is true, should trigger build"
+          fi
+
+  build:
+    name: Build and Release
+    needs: detect_version
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      needs.detect_version.outputs.new_version != ''
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Initialize Go modules if needed
+        run: |
+          if [ ! -f "go.sum" ]; then
+            echo "Initializing Go modules"
+            go mod tidy
+          fi
+
+      - name: Set version
+        id: set_version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            PRERELEASE="${{ github.event.inputs.prerelease }}"
+            echo "Source: Manual workflow_dispatch input"
+          else
+            VERSION="${{ needs.detect_version.outputs.new_version }}"
+            echo "Source: Semantic version detection (new_version: $VERSION)"
+            if [[ "${{ needs.detect_version.outputs.release_type }}" == *"pre"* ]]; then
+              PRERELEASE="true"
+            else
+              PRERELEASE="false"
+            fi
+          fi
+
+          # Set outputs for other steps to reference
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version_no_v=${VERSION#v}" >> $GITHUB_OUTPUT
+          echo "prerelease=$PRERELEASE" >> $GITHUB_OUTPUT
+
+          # Also set env vars for backward compatibility
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "PRERELEASE=$PRERELEASE" >> $GITHUB_ENV
+
+          echo "Updating version in main.go to ${VERSION#v}"
+          NEW_VERSION="${VERSION#v}"
+          echo "Stripped version value: $NEW_VERSION"
+
+          # Safety check - don't allow empty version
+          if [ -z "$NEW_VERSION" ]; then
+            echo "ERROR: Version is empty! Using default value."
+            NEW_VERSION="0.0.0"
+          fi
+
+          # Debug - show the current state of the version
+          grep -A 3 "Version information" cmd/budy/main.go || echo "Version information not found in main.go"
+
+          # Use sed to update the version regardless of context
+          if grep -q "appVersion = " cmd/budy/main.go; then
+            echo "Found appVersion, updating with sed"
+            sed -i '' "s/appVersion = \"[^\"]*\"/appVersion = \"$NEW_VERSION\"/" cmd/budy/main.go
+            # Show the change
+            grep -A 3 "Version information" cmd/budy/main.go
+          elif grep -q 'const appVersion = "[0-9]\+\.[0-9]\+\.[0-9]\+"' cmd/budy/main.go; then
+            echo "Found standalone const appVersion, updating"
+            sed -i '' "s/const appVersion = \"[0-9]\+\.[0-9]\+\.[0-9]\+.*\"/const appVersion = \"$NEW_VERSION\"/" cmd/budy/main.go
+          elif grep -q 'version = "[0-9]\+\.[0-9]\+\.[0-9]\+"' cmd/budy/main.go; then
+            echo "Found version variable, updating"
+            sed -i '' "s/version = \"[0-9]\+\.[0-9]\+\.[0-9]\+.*\"/version = \"$NEW_VERSION\"/" cmd/budy/main.go
+          else
+            echo "No version string found in main.go, creating a .version file instead"
+          fi
+
+          # Check if the update worked
+          git diff cmd/budy/main.go || echo "No changes detected in main.go"
+
+      - name: Build for macOS (Intel)
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -o budy-${{ steps.set_version.outputs.version }}-darwin-amd64 -ldflags="-X main.appVersion=${{ steps.set_version.outputs.version_no_v }}" ./cmd/budy
+
+      - name: Build for macOS (Apple Silicon)
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -o budy-${{ steps.set_version.outputs.version }}-darwin-arm64 -ldflags="-X main.appVersion=${{ steps.set_version.outputs.version_no_v }}" ./cmd/budy
+
+      - name: Build Universal Binary
+        run: |
+          lipo -create -output budy-${{ steps.set_version.outputs.version }}-darwin-universal budy-${{ steps.set_version.outputs.version }}-darwin-amd64 budy-${{ steps.set_version.outputs.version }}-darwin-arm64
+
+      - name: Compress binaries
+        run: |
+          gzip -9 -c budy-${{ steps.set_version.outputs.version }}-darwin-amd64 > budy-${{ steps.set_version.outputs.version }}-darwin-amd64.gz
+          gzip -9 -c budy-${{ steps.set_version.outputs.version }}-darwin-arm64 > budy-${{ steps.set_version.outputs.version }}-darwin-arm64.gz
+          gzip -9 -c budy-${{ steps.set_version.outputs.version }}-darwin-universal > budy-${{ steps.set_version.outputs.version }}-darwin-universal.gz
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.set_version.outputs.version }}
+          name: Release ${{ steps.set_version.outputs.version }}
+          draft: false
+          prerelease: ${{ steps.set_version.outputs.prerelease }}
+          generate_release_notes: true
+          files: |
+            budy-${{ steps.set_version.outputs.version }}-darwin-amd64
+            budy-${{ steps.set_version.outputs.version }}-darwin-arm64
+            budy-${{ steps.set_version.outputs.version }}-darwin-universal
+            budy-${{ steps.set_version.outputs.version }}-darwin-amd64.gz
+            budy-${{ steps.set_version.outputs.version }}-darwin-arm64.gz
+            budy-${{ steps.set_version.outputs.version }}-darwin-universal.gz
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Commit version update
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          # Check if main.go was actually modified
+          if git diff --exit-code cmd/budy/main.go; then
+            echo "No changes to main.go, creating a version marker file"
+            echo "${{ steps.set_version.outputs.version }}" > .version
+            git add .version
+          else
+            git add cmd/budy/main.go
+          fi
+
+          git commit -m "chore: bump version to ${{ steps.set_version.outputs.version }}"
+
+          # Use the GitHub App token for pushing
+          git remote set-url origin https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ github.repository }}.git
+          git push

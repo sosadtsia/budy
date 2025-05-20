@@ -1,0 +1,46 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build the application
+    cmds:
+      - go build -o budy ./cmd/budy
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - golangci-lint run
+
+  precommit:
+    desc: Run pre-commit checks (lint and test)
+    deps: [lint, test]
+
+  hooks:
+    desc: Setup git hooks
+    cmds:
+      - 'echo "Configuring git to use hooks from .githooks directory..."'
+      - git config core.hooksPath .githooks
+      - 'echo "Making hooks executable..."'
+      - chmod +x .githooks/*
+      - 'echo "Git hooks setup complete!"'
+      - 'echo "Note: Pre-commit hook will check for golangci-lint and run tests before each commit."'
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -f budy
+      - go clean
+
+  run:
+    desc: Run the application
+    cmds:
+      - go run ./cmd/budy
+
+  default:
+    desc: Default task
+    deps: [build]
