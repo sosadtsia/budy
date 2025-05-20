@@ -15,7 +15,7 @@ import (
 // Version information
 const (
 	appName    = "budy"
-	appVersion = "0.0.1"
+	appVersion = "0.1.0"
 )
 
 func main() {
