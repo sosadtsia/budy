@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 )
 
 // OpenAIClient handles interactions with the OpenAI API
@@ -82,7 +83,14 @@ func (c *OpenAIClient) Ask(query string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+
+	// Use a closure to properly handle the error from Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing response body: %v\n", err)
+		}
+	}()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)

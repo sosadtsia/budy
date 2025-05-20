@@ -7,10 +7,6 @@ import (
 func TestNewOpenAIClient(t *testing.T) {
 	client := NewOpenAIClient("test-api-key")
 
-	if client == nil {
-		t.Error("NewOpenAIClient returned nil")
-	}
-
 	if client.apiKey != "test-api-key" {
 		t.Errorf("Expected API key 'test-api-key', got '%s'", client.apiKey)
 	}
