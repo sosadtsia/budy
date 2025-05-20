@@ -7,6 +7,7 @@
 *.dll
 *.so
 *.dylib
+budy
 
 # Test binary, built with `go test -c`
 *.test
@@ -21,5 +22,14 @@
 go.work
 go.work.sum
 
-# env file
+# IDE directories
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
 .env
+
+# Data directory
+.budy/
