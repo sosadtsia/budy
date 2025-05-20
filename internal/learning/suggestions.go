@@ -9,11 +9,11 @@ import (
 
 // SuggestionEngine generates command suggestions based on history
 type SuggestionEngine struct {
-	history *shell.HistoryManager
+	history shell.HistoryManager
 }
 
 // NewSuggestionEngine creates a new suggestion engine
-func NewSuggestionEngine(history *shell.HistoryManager) *SuggestionEngine {
+func NewSuggestionEngine(history shell.HistoryManager) *SuggestionEngine {
 	return &SuggestionEngine{
 		history: history,
 	}

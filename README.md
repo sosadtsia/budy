@@ -93,13 +93,19 @@ Budy stores its configuration and history in `~/.budy/` directory.
 
 ### OpenAI API Key
 
-Set your OpenAI API key as an environment variable:
+Set your OpenAI API key in one of the following ways:
 
-```bash
-export OPENAI_API_KEY=your_api_key_here
-```
+1. As an environment variable:
+   ```bash
+   export OPENAI_API_KEY=your_api_key_here
+   ```
+   For permanent configuration, add this to your shell profile file (`.bashrc`, `.zshrc`, etc.).
 
-For permanent configuration, add this to your shell profile file (`.bashrc`, `.zshrc`, etc.).
+2. Directly from within budy:
+   ```
+   > config set openai_key your_api_key_here
+   ```
+   This will store your API key in the configuration file.
 
 ## Development
 
