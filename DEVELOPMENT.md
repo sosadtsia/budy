@@ -7,6 +7,7 @@ This document provides guidelines and information for developers who want to con
 ### Prerequisites
 
 - Go 1.18 or later
+- [Ollama](https://ollama.ai/) - For local AI model execution
 - [Task](https://taskfile.dev/) - Task runner for development tasks
 - [golangci-lint](https://golangci-lint.run/) - For code linting
 
@@ -36,6 +37,53 @@ This document provides guidelines and information for developers who want to con
 5. Run tests:
    ```bash
    task test
+   ```
+
+### Setting Up Ollama for Development
+
+1. Install Ollama from [ollama.ai](https://ollama.ai/)
+
+   **macOS Installation:**
+   - Download the macOS app from [ollama.ai](https://ollama.ai/download)
+   - Open the downloaded file and drag Ollama to your Applications folder
+   - Launch Ollama from your Applications folder
+   - You'll see the Ollama icon in your menu bar when it's running
+   - Verify installation in terminal: `which ollama` (should show `/usr/local/bin/ollama`)
+
+   **macOS Installation with Homebrew:**
+   ```bash
+   # Install Ollama
+   brew install ollama
+
+   # Start Ollama service
+   brew services start ollama
+
+   # Verify installation
+   which ollama
+   ollama --version
+   ```
+
+2. Start the Ollama server:
+   ```bash
+   # Ollama should start automatically after installation
+   # If it's not running, you can start it manually
+   ollama serve
+   ```
+
+3. Pull the models you want to use for development:
+   ```bash
+   # Pull the default model (REQUIRED)
+   ollama pull llama3
+
+   # Other models you might want to use (OPTIONAL)
+   ollama pull mistral
+   ollama pull gemma
+   ```
+
+4. Test Ollama connection:
+   ```bash
+   # List available models
+   curl http://localhost:11434/api/tags
    ```
 
 ## Project Structure
@@ -184,6 +232,11 @@ task run        # Run the application
 - **Linter errors**: Run `task lint` to see detailed errors.
 - **Test failures**: Run `go test -v ./...` for verbose output.
 - **Build errors**: Check Go version and dependencies.
+- **Ollama connection issues**:
+  - Make sure Ollama is installed and running: `curl http://localhost:11434/api/tags`
+  - If Ollama is not running, start it with `ollama serve` or `brew services start ollama`
+  - Check that you've pulled the required models: `ollama list`
+  - Verify Ollama URL in configuration is correct
 
 ### Getting Help
 
@@ -192,19 +245,3 @@ If you encounter issues during development:
 1. Check existing GitHub issues first.
 2. Feel free to create a new issue if your problem hasn't been reported.
 3. Include detailed information about your environment and the problem.
-
-## Documentation
-
-### Code Documentation
-
-- Document all exported functions, types, and constants.
-- Use meaningful names for variables and functions.
-- Include examples for complex functionality.
-
-### Updating Documentation
-
-When making changes, update the relevant documentation:
-
-- README.md for user-facing changes
-- DEVELOPMENT.md for developer workflow changes
-- Code comments for API changes

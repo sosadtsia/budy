@@ -1,80 +1,83 @@
 package storage
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 )
 
+// TestFileStorage tests the file storage implementation
 func TestFileStorage(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "budy-test")
 	if err != nil {
-		t.Fatalf("Failed to create temp directory: %v", err)
+		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
 		if err := os.RemoveAll(tempDir); err != nil {
-			t.Logf("Warning: Failed to remove temp directory: %v", err)
+			t.Logf("Warning: Failed to remove temporary directory: %v", err)
 		}
 	}()
 
-	// Create a test storage instance with the temp directory
+	// Create a test storage with our temp directory
 	storage := &FileStorage{
 		dataDir: tempDir,
 	}
 
-	// Test GetDataDir method
-	t.Run("GetDataDir", func(t *testing.T) {
-		dir := storage.GetDataDir()
-		if dir != tempDir {
-			t.Errorf("GetDataDir returned wrong directory. Got: %s, Expected: %s", dir, tempDir)
-		}
-	})
+	// Test GetDataDir
+	if storage.GetDataDir() != tempDir {
+		t.Errorf("Expected data dir to be %s, got %s", tempDir, storage.GetDataDir())
+	}
 
-	// Test Save and Load methods
-	t.Run("SaveAndLoad", func(t *testing.T) {
-		// Test data
-		type TestData struct {
-			Name  string `json:"name"`
-			Value int    `json:"value"`
-		}
-		testKey := "test-key"
-		testData := TestData{
-			Name:  "Test",
-			Value: 42,
-		}
+	// Test data to save and load
+	type TestData struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+	testData := TestData{
+		Name:  "test",
+		Value: 42,
+	}
 
-		// Save data
-		err := storage.Save(testKey, testData)
-		if err != nil {
-			t.Fatalf("Failed to save data: %v", err)
-		}
+	// Test Save
+	key := "test-key"
+	if err := storage.Save(key, testData); err != nil {
+		t.Errorf("Error saving data: %v", err)
+	}
 
-		// Verify file exists
-		filePath := filepath.Join(tempDir, testKey+".json")
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			t.Fatalf("File was not created at %s", filePath)
-		}
+	// Verify the file was created
+	filePath := filepath.Join(tempDir, key+".json")
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		t.Errorf("Expected file %s to exist", filePath)
+	}
 
-		// Load data
-		var loadedData TestData
-		err = storage.Load(testKey, &loadedData)
-		if err != nil {
-			t.Fatalf("Failed to load data: %v", err)
-		}
+	// Verify file contents
+	fileData, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Errorf("Error reading file: %v", err)
+	}
+	var savedData TestData
+	if err := json.Unmarshal(fileData, &savedData); err != nil {
+		t.Errorf("Error unmarshaling file data: %v", err)
+	}
+	if savedData.Name != testData.Name || savedData.Value != testData.Value {
+		t.Errorf("File data doesn't match expected: got %+v, want %+v", savedData, testData)
+	}
 
-		// Verify data integrity
-		if loadedData.Name != testData.Name || loadedData.Value != testData.Value {
-			t.Errorf("Loaded data doesn't match original. Got: %+v, Expected: %+v", loadedData, testData)
-		}
-	})
+	// Test Load
+	var loadedData TestData
+	if err := storage.Load(key, &loadedData); err != nil {
+		t.Errorf("Error loading data: %v", err)
+	}
+	if loadedData.Name != testData.Name || loadedData.Value != testData.Value {
+		t.Errorf("Loaded data doesn't match expected: got %+v, want %+v", loadedData, testData)
+	}
 
-	// Test loading non-existent data
-	t.Run("LoadNonExistent", func(t *testing.T) {
-		var data map[string]interface{}
-		err := storage.Load("non-existent", &data)
-		if err == nil {
-			t.Error("Expected an error when loading non-existent key, but got nil")
-		}
-	})
+	// Test Load with non-existent key
+	var emptyData TestData
+	err = storage.Load("non-existent", &emptyData)
+	if err == nil || !os.IsNotExist(err) {
+		t.Errorf("Expected not exists error, got %v", err)
+	}
 }
