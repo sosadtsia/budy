@@ -23,6 +23,9 @@ func TestConfigFunctions(t *testing.T) {
 		// Create test config
 		testConfig := &Config{
 			OpenAIAPIKey: "test-api-key",
+			AIProvider:   ProviderOpenAI,
+			OllamaURL:    "http://localhost:11434",
+			OllamaModel:  "llama3",
 		}
 
 		// Save config
@@ -45,7 +48,20 @@ func TestConfigFunctions(t *testing.T) {
 
 		// Verify data integrity
 		if loadedConfig.OpenAIAPIKey != testConfig.OpenAIAPIKey {
-			t.Errorf("Loaded config doesn't match original. Got: %+v, Expected: %+v", loadedConfig, testConfig)
+			t.Errorf("Loaded config API key doesn't match. Got: %s, Expected: %s",
+				loadedConfig.OpenAIAPIKey, testConfig.OpenAIAPIKey)
+		}
+		if loadedConfig.AIProvider != testConfig.AIProvider {
+			t.Errorf("Loaded config AI provider doesn't match. Got: %s, Expected: %s",
+				loadedConfig.AIProvider, testConfig.AIProvider)
+		}
+		if loadedConfig.OllamaURL != testConfig.OllamaURL {
+			t.Errorf("Loaded config Ollama URL doesn't match. Got: %s, Expected: %s",
+				loadedConfig.OllamaURL, testConfig.OllamaURL)
+		}
+		if loadedConfig.OllamaModel != testConfig.OllamaModel {
+			t.Errorf("Loaded config Ollama model doesn't match. Got: %s, Expected: %s",
+				loadedConfig.OllamaModel, testConfig.OllamaModel)
 		}
 	})
 
@@ -68,9 +84,18 @@ func TestConfigFunctions(t *testing.T) {
 			t.Fatalf("Expected no error when loading non-existent config, but got: %v", err)
 		}
 
-		// Should get default empty config
+		// Should get default empty config with default values
 		if config.OpenAIAPIKey != "" {
 			t.Errorf("Expected empty API key, but got: %s", config.OpenAIAPIKey)
+		}
+		if config.AIProvider != ProviderOllama {
+			t.Errorf("Expected default AI provider %s, but got: %s", ProviderOllama, config.AIProvider)
+		}
+		if config.OllamaURL != "http://localhost:11434" {
+			t.Errorf("Expected default Ollama URL http://localhost:11434, but got: %s", config.OllamaURL)
+		}
+		if config.OllamaModel != "llama3" {
+			t.Errorf("Expected default Ollama model llama3, but got: %s", config.OllamaModel)
 		}
 	})
 
@@ -142,6 +167,110 @@ func TestConfigFunctions(t *testing.T) {
 
 		if loadedConfig.OpenAIAPIKey != newKey {
 			t.Errorf("Loaded config API key doesn't match. Got: %s, Expected: %s", loadedConfig.OpenAIAPIKey, newKey)
+		}
+	})
+
+	// Test SetAIProvider
+	t.Run("SetAIProvider", func(t *testing.T) {
+		config := &Config{}
+
+		// Test setting to OpenAI
+		err := SetAIProvider(tempDir, config, ProviderOpenAI)
+		if err != nil {
+			t.Fatalf("Failed to set AI provider: %v", err)
+		}
+
+		if config.AIProvider != ProviderOpenAI {
+			t.Errorf("Config AI provider not updated. Got: %s, Expected: %s", config.AIProvider, ProviderOpenAI)
+		}
+
+		// Test setting to Ollama
+		err = SetAIProvider(tempDir, config, ProviderOllama)
+		if err != nil {
+			t.Fatalf("Failed to set AI provider: %v", err)
+		}
+
+		if config.AIProvider != ProviderOllama {
+			t.Errorf("Config AI provider not updated. Got: %s, Expected: %s", config.AIProvider, ProviderOllama)
+		}
+
+		// Verify by loading the config
+		loadedConfig, err := LoadConfig(tempDir)
+		if err != nil {
+			t.Fatalf("Failed to load config after setting provider: %v", err)
+		}
+
+		if loadedConfig.AIProvider != ProviderOllama {
+			t.Errorf("Loaded config AI provider doesn't match. Got: %s, Expected: %s",
+				loadedConfig.AIProvider, ProviderOllama)
+		}
+	})
+
+	// Test SetOllamaSettings
+	t.Run("SetOllamaSettings", func(t *testing.T) {
+		config := &Config{
+			OllamaURL:   "http://localhost:11434",
+			OllamaModel: "llama3",
+		}
+
+		// Test setting URL only
+		err := SetOllamaSettings(tempDir, config, "http://example.com:11434", "")
+		if err != nil {
+			t.Fatalf("Failed to set Ollama URL: %v", err)
+		}
+
+		if config.OllamaURL != "http://example.com:11434" {
+			t.Errorf("Config Ollama URL not updated. Got: %s, Expected: %s",
+				config.OllamaURL, "http://example.com:11434")
+		}
+		if config.OllamaModel != "llama3" {
+			t.Errorf("Config Ollama model changed unexpectedly. Got: %s, Expected: %s",
+				config.OllamaModel, "llama3")
+		}
+
+		// Test setting model only
+		err = SetOllamaSettings(tempDir, config, "", "mistral")
+		if err != nil {
+			t.Fatalf("Failed to set Ollama model: %v", err)
+		}
+
+		if config.OllamaURL != "http://example.com:11434" {
+			t.Errorf("Config Ollama URL changed unexpectedly. Got: %s, Expected: %s",
+				config.OllamaURL, "http://example.com:11434")
+		}
+		if config.OllamaModel != "mistral" {
+			t.Errorf("Config Ollama model not updated. Got: %s, Expected: %s",
+				config.OllamaModel, "mistral")
+		}
+
+		// Test setting both URL and model
+		err = SetOllamaSettings(tempDir, config, "http://localhost:11434", "llama3")
+		if err != nil {
+			t.Fatalf("Failed to set Ollama settings: %v", err)
+		}
+
+		if config.OllamaURL != "http://localhost:11434" {
+			t.Errorf("Config Ollama URL not updated. Got: %s, Expected: %s",
+				config.OllamaURL, "http://localhost:11434")
+		}
+		if config.OllamaModel != "llama3" {
+			t.Errorf("Config Ollama model not updated. Got: %s, Expected: %s",
+				config.OllamaModel, "llama3")
+		}
+
+		// Verify by loading the config
+		loadedConfig, err := LoadConfig(tempDir)
+		if err != nil {
+			t.Fatalf("Failed to load config after setting Ollama settings: %v", err)
+		}
+
+		if loadedConfig.OllamaURL != "http://localhost:11434" {
+			t.Errorf("Loaded config Ollama URL doesn't match. Got: %s, Expected: %s",
+				loadedConfig.OllamaURL, "http://localhost:11434")
+		}
+		if loadedConfig.OllamaModel != "llama3" {
+			t.Errorf("Loaded config Ollama model doesn't match. Got: %s, Expected: %s",
+				loadedConfig.OllamaModel, "llama3")
 		}
 	})
 }
